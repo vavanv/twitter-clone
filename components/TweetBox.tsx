@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, Dispatch, SetStateAction } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import {
   CalendarIcon,
@@ -7,14 +7,64 @@ import {
   PhotographIcon,
   SearchCircleIcon,
 } from '@heroicons/react/outline';
+import { Tweet, TweetBody } from '../typings';
+import { fetchTweets } from '../utils/fetchTweets';
+import toast from 'react-hot-toast';
 
-function TweetBox() {
+interface Props {
+  setTweets: Dispatch<SetStateAction<Tweet[]>>;
+}
+
+function TweetBox({ setTweets }: Props) {
   const { data: session } = useSession();
 
   const [input, setInput] = useState<string>('');
+  const [image, setImage] = useState<string>('');
   const [imageUrlBoxIsOpen, setImageUrlBoxIsOpen] = useState<Boolean>(false);
 
-  const inputImageRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  const addImageToTweet = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+    e.preventDefault();
+    if (imageInputRef.current?.value) {
+      setImage(imageInputRef.current.value);
+      imageInputRef.current.value = '';
+      setImageUrlBoxIsOpen(false);
+    }
+  };
+
+  const postTweet = async () => {
+    const tweetInfo: TweetBody = {
+      text: input,
+      username: session?.user?.name || 'Unknown User',
+      profileImg: session?.user?.image || 'https://links.papareact.com/gll',
+      image: image,
+    };
+
+    const result = await fetch(`/api/addTweet`, {
+      body: JSON.stringify(tweetInfo),
+      method: 'POST',
+    });
+
+    const json = await result.json();
+
+    const newTweets = await fetchTweets();
+    setTweets(newTweets);
+
+    toast('Tweet posted');
+
+    return json;
+  };
+
+  const handleSubmit = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+    e.preventDefault();
+    postTweet();
+
+    setInput('');
+    setImage('');
+    setImageUrlBoxIsOpen(false);
+  };
+
   return (
     <div className="flex space-x-2 p-5">
       <img
@@ -43,6 +93,7 @@ function TweetBox() {
               <LocationMarkerIcon className="h-5 w-5" />
             </div>
             <button
+              onClick={handleSubmit}
               disabled={!input || !session}
               className="bg-twitter px-5 py-2 font-bold text-white rounded-full disabled:opacity-40"
             >
@@ -52,7 +103,7 @@ function TweetBox() {
           {imageUrlBoxIsOpen && (
             <form action="" className="mt-5 flex rounded-lg bg-twitter/80 py-2 px-4">
               <input
-                ref={inputImageRef}
+                ref={imageInputRef}
                 className="flex-1 bg-transparent p-2 text-white outline-none placeholder:text-white"
                 type="text"
                 placeholder="Enter Image URL..."
@@ -61,6 +112,13 @@ function TweetBox() {
                 Add image
               </button>
             </form>
+          )}
+          {image && (
+            <img
+              className="mt-10 h-40 w-full rounded-xl object-contain shadow-lg"
+              src={image}
+              alt=""
+            />
           )}
         </form>
       </div>
